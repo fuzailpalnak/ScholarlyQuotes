@@ -2,7 +2,7 @@ mod db_conn;
 mod entities;
 mod errors;
 mod routes;
-// mod models;
+mod utils;
 
 use crate::errors::AppError;
 use actix_web::{web, App, HttpServer};
@@ -28,7 +28,7 @@ async fn main() -> Result<(), AppError> {
                     .app_data(web::Data::new(db.clone())) // Pass db connection to the app
                     .configure(routes::config_routes) // Configure routes
             })
-            .bind("127.0.0.1:8080")? // Bind to address
+            .bind("0.0.0.0:8080")? // Bind to address
             .workers(2) // Number of worker threads
             .run() // Run the server
             .await?;

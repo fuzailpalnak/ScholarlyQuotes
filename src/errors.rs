@@ -8,8 +8,8 @@ pub enum AppError {
     DatabaseError(DbErr),
     ActixError(actix_web::Error),
     IOError(IOError),
-    // NotFound(String),
-    // BadRequest(String),
+    NotFound(String),
+    Unauthorized(String),
 }
 
 impl From<DbErr> for AppError {
@@ -36,8 +36,8 @@ impl std::fmt::Display for AppError {
             AppError::DatabaseError(e) => write!(f, "Database error: {:?}", e),
             AppError::ActixError(e) => write!(f, "Actix error: {}", e),
             AppError::IOError(e) => write!(f, "I/O error: {}", e),
-            // AppError::NotFound(msg) => write!(f, "Not found: {}", msg),
-            // AppError::BadRequest(msg) => write!(f, "Bad request: {}", msg),
+            AppError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            AppError::Unauthorized(msg) => write!(f, "Unauthorized request: {}", msg),
         }
     }
 }
@@ -55,10 +55,11 @@ impl ResponseError for AppError {
             }
             AppError::IOError(_) => {
                 HttpResponse::InternalServerError().body(format!("Internal Server Error: {}", self))
-            } // AppError::NotFound(_) => HttpResponse::NotFound().body(format!("Not Found: {}", self)),
-              // AppError::BadRequest(_) => {
-              //     HttpResponse::BadRequest().body(format!("Bad Request: {}", self))
-              // }
+            }
+            AppError::NotFound(_) => HttpResponse::NotFound().body(format!("Not Found: {}", self)),
+            AppError::Unauthorized(_) => {
+                HttpResponse::Unauthorized().body(format!("Unauthorized Request: {}", self))
+            }
         }
     }
 }

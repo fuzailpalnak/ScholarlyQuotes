@@ -1,7 +1,6 @@
 use crate::entities::quotes;
 use crate::errors;
-use crate::utils;
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpResponse};
 use log::{debug, error, info};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};

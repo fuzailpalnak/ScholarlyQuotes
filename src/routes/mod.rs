@@ -1,12 +1,18 @@
-pub mod auth_token;
-pub mod create_citations;
-pub mod get_citations;
-pub mod health;
+pub mod citations;
 
-use actix_web::web;
+pub mod health;
+pub mod tokens;
+
+use crate::services::middleware::admin_middleware;
+
+use actix_web::{middleware::from_fn, web};
 
 pub fn config_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(health::health_check)
-        .service(create_citations::add_quote)
-        .service(get_citations::get_quote);
+        .service(citations::citations_scope())
+        .service(
+            web::resource("/get_token")
+                .wrap(from_fn(admin_middleware::check_admin_api_key))
+                .to(tokens::generate_token_handler),
+        );
 }

@@ -2,6 +2,7 @@ mod db_conn;
 mod entities;
 mod errors;
 mod routes;
+mod services;
 mod utils;
 
 use crate::errors::AppError;

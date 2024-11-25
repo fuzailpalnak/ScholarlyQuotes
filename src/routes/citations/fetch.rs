@@ -15,7 +15,7 @@ pub struct ResponseQuote {
     pub reference: String,
 }
 
-pub async fn extract_quote_from_db(
+pub async fn fetch_quote_by_id(
     random_id: i32,
     db: &DatabaseConnection,
 ) -> Result<ResponseQuote, errors::AppError> {
@@ -32,16 +32,14 @@ pub async fn extract_quote_from_db(
     })
 }
 
-#[actix_web::get("/get_quote")]
-pub async fn get_quote(
+pub async fn get_random_quote_handler(
     db: web::Data<Arc<DatabaseConnection>>,
 ) -> Result<HttpResponse, errors::AppError> {
     let db_conn = db.get_ref().as_ref();
     let count = Quotes::find().count(db_conn).await?;
-
     if count > 0 {
         let random_id = rand::thread_rng().gen_range(1..=count as i32);
-        let response = extract_quote_from_db(random_id, db_conn).await?;
+        let response = fetch_quote_by_id(random_id, db_conn).await?;
         Ok(HttpResponse::Ok().json(response))
     } else {
         info!("NO Quotes Found in the DB during fetch");

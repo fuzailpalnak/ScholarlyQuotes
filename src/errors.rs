@@ -1,7 +1,9 @@
 use actix_web::{HttpResponse, ResponseError};
+use jsonwebtoken::errors::Error as JWTError;
 use log::error;
 use sea_orm::DbErr;
 use std::io::Error as IOError;
+use std::time::SystemTimeError;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -10,6 +12,19 @@ pub enum AppError {
     IOError(IOError),
     NotFound(String),
     Unauthorized(String),
+    SystemTimeError(SystemTimeError),
+    TokenError(JWTError),
+}
+impl From<SystemTimeError> for AppError {
+    fn from(e: SystemTimeError) -> Self {
+        AppError::SystemTimeError(e)
+    }
+}
+
+impl From<JWTError> for AppError {
+    fn from(e: JWTError) -> Self {
+        AppError::TokenError(e)
+    }
 }
 
 impl From<DbErr> for AppError {
@@ -38,6 +53,8 @@ impl std::fmt::Display for AppError {
             AppError::IOError(e) => write!(f, "I/O error: {}", e),
             AppError::NotFound(msg) => write!(f, "Not found: {}", msg),
             AppError::Unauthorized(msg) => write!(f, "Unauthorized request: {}", msg),
+            AppError::SystemTimeError(e) => write!(f, "System error: {:?}", e),
+            AppError::TokenError(e) => write!(f, "Token error: {:?}", e),
         }
     }
 }
@@ -47,6 +64,9 @@ impl ResponseError for AppError {
         error!("{}", self);
 
         match self {
+            AppError::TokenError(_) => {
+                HttpResponse::InternalServerError().body(format!("Internal Server Error: {}", self))
+            }
             AppError::DatabaseError(_) => {
                 HttpResponse::InternalServerError().body(format!("Internal Server Error: {}", self))
             }
@@ -57,6 +77,9 @@ impl ResponseError for AppError {
                 HttpResponse::InternalServerError().body(format!("Internal Server Error: {}", self))
             }
             AppError::NotFound(_) => HttpResponse::NotFound().body(format!("Not Found: {}", self)),
+            AppError::SystemTimeError(_) => {
+                HttpResponse::BadRequest().body(format!("Not Found: {}", self))
+            }
             AppError::Unauthorized(_) => {
                 HttpResponse::Unauthorized().body(format!("Unauthorized Request: {}", self))
             }

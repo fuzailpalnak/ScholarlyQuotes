@@ -27,7 +27,7 @@ pub fn default_category() -> Option<String> {
     Some("Uncategorized".to_string())
 }
 
-pub async fn insert_quote(
+pub async fn save_quote_to_db(
     db: &DatabaseConnection,
     quote: &Quote,
 ) -> Result<quotes::ActiveModel, errors::AppError> {
@@ -44,28 +44,16 @@ pub async fn insert_quote(
         Err(err) => Err(errors::AppError::DatabaseError(err)),
     }
 }
-#[actix_web::post("/add_quote")]
-pub async fn add_quote(
+pub async fn create_quote_handler(
     db: web::Data<Arc<DatabaseConnection>>,
     data: web::Json<Quote>,
-    req: HttpRequest,
 ) -> Result<HttpResponse, errors::AppError> {
-    // Extract the token from the request
-    let token = utils::jwt::extract_bearer(req)?;
-
-    // Get the admin secret
-    let admin_secret = utils::jwt::get_admin_secret()?;
-
-    // Validate the token
-    let claims = utils::jwt::validate_token(token.as_str(), admin_secret.as_str())?;
-    debug!("Token claims: {:?}", claims);
-
     // Process the input data
     debug!("Input data: {:?}", data);
     let quote = data.into_inner();
 
     // Insert the quote into the database
-    insert_quote(&db, &quote).await.map_err(|err| {
+    save_quote_to_db(&db, &quote).await.map_err(|err| {
         error!("Error {:?} while adding to DB", err);
         err
     })?;

@@ -1,20 +1,23 @@
 use crate::errors;
 use crate::utils;
-use actix_web::HttpResponse;
+use actix_web::{web, HttpResponse};
+use utils::jwt_utils::Role;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ResponseQuote {
-    pub content: String,
-    pub author: String,
-    pub category: Option<String>,
-    pub reference: String,
+#[derive(Deserialize, Serialize)]
+pub struct TokenRequest {
+    role: Role,
 }
 
-pub async fn generate_token_handler() -> Result<HttpResponse, errors::AppError> {
+pub async fn generate_client_token_handler(
+    token_request: web::Json<TokenRequest>,
+) -> Result<HttpResponse, errors::AppError> {
     let admin_secret = utils::env_utils::load_admin_secret().unwrap();
-    match utils::jwt_utils::generate_token_with_role("client", &admin_secret, 3600) {
+
+    let role = &token_request.role;
+
+    match utils::jwt_utils::generate_token_with_role(role.clone(), &admin_secret) {
         Ok(token) => Ok(HttpResponse::Ok().json(token)),
         Err(err) => Err(err),
     }

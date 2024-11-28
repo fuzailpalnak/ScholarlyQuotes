@@ -26,7 +26,7 @@ pub fn default_category() -> Option<String> {
     Some("Uncategorized".to_string())
 }
 
-pub async fn save_quote_to_db(
+async fn save_quote_to_db(
     db: &DatabaseConnection,
     quote: &Quote,
 ) -> Result<quotes::ActiveModel, errors::AppError> {

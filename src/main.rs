@@ -30,7 +30,7 @@ async fn main() -> Result<(), AppError> {
                     .configure(routes::config_routes) // Configure routes
             })
             .bind("0.0.0.0:8080")? // Bind to address
-            .workers(2) // Number of worker threads
+            .workers(1) // Number of worker threads
             .run() // Run the server
             .await?;
 

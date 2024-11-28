@@ -1,45 +1,88 @@
 use crate::errors;
 use actix_web::dev::ServiceRequest;
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{
+    decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
+};
 use log::error;
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Admin,   // level 0
+    Premium, // level 1
+    Regular, // level 2
+    Free,    // level 3
+}
+
+impl Role {
+    /// Returns the default expiration time in seconds for the role
+    pub fn default_expiration(&self) -> usize {
+        match self {
+            Role::Admin => usize::MAX,
+            Role::Premium => 365 * 24 * 60 * 60,
+            Role::Regular => 30 * 24 * 60 * 60,
+            Role::Free => 60 * 60,
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub exp: usize,
-    pub role: String,
+    pub role: Role,
 }
 
 /// Generate a token with a specific role and expiration time.
-pub fn generate_token_with_role(
-    role: &str,
-    secret: &str,
-    expiry_secs: u64,
-) -> Result<String, errors::AppError> {
-    let expiration = SystemTime::now()
-        .checked_add(Duration::from_secs(expiry_secs))
-        .ok_or(errors::AppError::NotFound("NOT FOUND".to_string()))?
-        .duration_since(UNIX_EPOCH)
-        .map_err(errors::AppError::SystemTimeError)?
-        .as_secs() as usize;
+pub fn generate_token_with_role(role: Role, secret: &str) -> Result<String, errors::AppError> {
+    let current_time = current_unix_timestamp()?;
+    let expiration_time = calculate_expiration(&role, current_time);
 
     let claims = Claims {
-        exp: expiration,
-        role: role.to_string(),
+        exp: expiration_time,
+        role,
     };
 
-    let token = encode(
+    encode_token(&claims, secret)
+}
+
+/// Retrieve the current Unix timestamp as `usize`.
+fn current_unix_timestamp() -> Result<usize, errors::AppError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(errors::AppError::SystemTimeError)
+        .map(|duration| duration.as_secs() as usize)
+}
+
+/// Calculate the expiration time based on the role and current time.
+fn calculate_expiration(role: &Role, current_time: usize) -> usize {
+    match role {
+        Role::Admin => usize::MAX,
+        _ => current_time + role.default_expiration(),
+    }
+}
+
+/// Encode a JWT token with the given claims and secret.
+fn encode_token(claims: &Claims, secret: &str) -> Result<String, errors::AppError> {
+    encode(
         &Header::default(),
-        &claims,
+        claims,
         &EncodingKey::from_secret(secret.as_ref()),
     )
-    .map_err(errors::AppError::TokenError)?;
-    Ok(token)
+    .map_err(errors::AppError::TokenError)
 }
 
 /// Decode and validate a JWT token, returning claims if valid.
-pub fn decode_and_validate_token(token: &str, secret: &str) -> Result<Claims, errors::AppError> {
+pub fn is_user_admin_or_premium(token: &str, secret: &str) -> Result<Claims, errors::AppError> {
+    let token_data = decode_token(token, secret)?;
+    validate_admin_and_premium_role(&token_data.claims.role)?;
+    println!("{:?}", token_data.claims);
+    Ok(token_data.claims)
+}
+
+/// Decode a JWT token and return the token data.
+fn decode_token(token: &str, secret: &str) -> Result<TokenData<Claims>, errors::AppError> {
     let validation = Validation::new(Algorithm::HS256);
     let token_data = decode::<Claims>(
         token,
@@ -50,7 +93,21 @@ pub fn decode_and_validate_token(token: &str, secret: &str) -> Result<Claims, er
         error!("JWT decode error: {:?}", err);
         errors::AppError::Unauthorized("Invalid token".to_string())
     })?;
-    Ok(token_data.claims)
+
+    Ok(token_data)
+}
+
+/// Validate the user's role in the token.
+fn validate_admin_and_premium_role(role: &Role) -> Result<(), errors::AppError> {
+    match role {
+        Role::Admin | Role::Premium => Ok(()),
+        _ => {
+            error!("Insufficient role: {:?}", role);
+            Err(errors::AppError::Unauthorized(
+                "Insufficient role".to_string(),
+            ))
+        }
+    }
 }
 
 /// Extract the Bearer token from the Authorization header.

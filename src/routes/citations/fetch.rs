@@ -15,7 +15,7 @@ pub struct ResponseQuote {
     pub reference: String,
 }
 
-pub async fn fetch_quote_by_id(
+async fn fetch_quote_by_id(
     random_id: i32,
     db: &DatabaseConnection,
 ) -> Result<ResponseQuote, errors::AppError> {

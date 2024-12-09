@@ -1,0 +1,13 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: scholarly-quotes
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: docker.io/buildFailed/scholarly-quotes
+          env:
+            - name: TARGET
+              value: "Scholarly-Quotes"

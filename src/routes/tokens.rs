@@ -10,6 +10,11 @@ pub struct TokenRequest {
     role: Role,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct TokenResponse {
+    token: String,
+}
+
 pub async fn generate_client_token_handler(
     token_request: web::Json<TokenRequest>,
 ) -> Result<HttpResponse, errors::AppError> {
@@ -18,7 +23,7 @@ pub async fn generate_client_token_handler(
     let role = &token_request.role;
 
     match utils::jwt_utils::generate_token_with_role(role.clone(), &admin_secret) {
-        Ok(token) => Ok(HttpResponse::Ok().json(token)),
+        Ok(token) => Ok(HttpResponse::Ok().json(TokenResponse { token })),
         Err(err) => Err(err),
     }
 }

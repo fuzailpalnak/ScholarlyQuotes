@@ -9,7 +9,7 @@ pub async fn check_admin_api_key(
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
     match req.headers().get("api_key") {
-        Some(api_key) => match utils::env_utils::load_admin_api_key() {
+        Some(api_key) => match utils::env::load_admin_api_key() {
             Ok(admin_api_key) => {
                 if api_key.to_str().unwrap() == admin_api_key.to_string() {
                     next.call(req).await

@@ -1,5 +1,4 @@
 mod db_conn;
-mod entities;
 mod errors;
 mod routes;
 mod services;
@@ -37,6 +36,6 @@ async fn main() -> Result<(), AppError> {
             // Return Ok after the server runs successfully
             Ok(())
         }
-        Err(e) => Err(AppError::DatabaseError(e)),
+        Err(e) => Err(e),
     }
 }

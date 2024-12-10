@@ -1,13 +1,12 @@
 use actix_web::{HttpResponse, ResponseError};
 use jsonwebtoken::errors::Error as JWTError;
 use log::error;
-use sea_orm::DbErr;
 use std::io::Error as IOError;
 use std::time::SystemTimeError;
 
 #[derive(Debug)]
 pub enum AppError {
-    DatabaseError(DbErr),
+    DatabaseError(String),
     ActixError(actix_web::Error),
     IOError(IOError),
     NotFound(String),
@@ -27,8 +26,8 @@ impl From<JWTError> for AppError {
     }
 }
 
-impl From<DbErr> for AppError {
-    fn from(e: DbErr) -> Self {
+impl From<String> for AppError {
+    fn from(e: String) -> Self {
         AppError::DatabaseError(e)
     }
 }

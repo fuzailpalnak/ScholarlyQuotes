@@ -1,11 +1,9 @@
-use crate::entities::quotes::Entity as Quotes;
 use crate::errors;
 use actix_web::{web, HttpResponse};
-use log::info;
-use rand::Rng;
-use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait};
+use firebase_rs::Firebase;
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ResponseQuote {
@@ -15,36 +13,34 @@ pub struct ResponseQuote {
     pub reference: String,
 }
 
-async fn fetch_quote_by_id(
-    random_id: i32,
-    db: &DatabaseConnection,
-) -> Result<ResponseQuote, errors::AppError> {
-    let random_quote = Quotes::find_by_id(random_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| errors::AppError::NotFound("Quote Not Found in DB".to_string()))?;
-
-    Ok(ResponseQuote {
-        author: random_quote.author,
-        content: random_quote.content,
-        category: random_quote.category,
-        reference: random_quote.reference,
-    })
-}
-
 pub async fn get_random_quote_handler(
-    db: web::Data<Arc<DatabaseConnection>>,
+    db: web::Data<Arc<Firebase>>,
 ) -> Result<HttpResponse, errors::AppError> {
-    let db_conn = db.get_ref().as_ref();
-    let count = Quotes::find().count(db_conn).await?;
-    if count > 0 {
-        let random_id = rand::thread_rng().gen_range(1..=count as i32);
-        let response = fetch_quote_by_id(random_id, db_conn).await?;
-        Ok(HttpResponse::Ok().json(response))
-    } else {
-        info!("NO Quotes Found in the DB during fetch");
-        Err(errors::AppError::NotFound(
-            "No quotes found in the database.".to_string(),
-        ))
+    let quotes_result = db
+        .at("quotes")
+        .get::<HashMap<String, ResponseQuote>>()
+        .await;
+
+    match quotes_result {
+        Ok(quotes_map) => {
+            if quotes_map.is_empty() {
+                return Err(errors::AppError::NotFound("No quotes found".to_string()));
+            }
+
+            let keys: Vec<&String> = quotes_map.keys().collect();
+            let random_key = keys.choose(&mut rand::thread_rng());
+
+            if let Some(key) = random_key {
+                let response = quotes_map.get(*key).ok_or_else(|| {
+                    errors::AppError::NotFound("Randomly selected key not found".to_string())
+                })?;
+                Ok(HttpResponse::Ok().json(response))
+            } else {
+                Err(errors::AppError::NotFound(
+                    "Could not select a random quote.".to_string(),
+                ))
+            }
+        }
+        Err(err) => Err(errors::AppError::DatabaseError(err.to_string())),
     }
 }

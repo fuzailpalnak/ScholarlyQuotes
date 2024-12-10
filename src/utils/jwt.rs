@@ -74,11 +74,18 @@ fn encode_token(claims: &Claims, secret: &str) -> Result<String, errors::AppErro
 }
 
 /// Decode and validate a JWT token, returning claims if valid.
-pub fn is_user_admin_or_premium(token: &str, secret: &str) -> Result<Claims, errors::AppError> {
+pub fn is_admin(token: &str, secret: &str) -> Result<Claims, errors::AppError> {
     let token_data = decode_token(token, secret)?;
-    validate_admin_and_premium_role(&token_data.claims.role)?;
-    println!("{:?}", token_data.claims);
-    Ok(token_data.claims)
+    let role = &token_data.claims.role;
+    match role {
+        Role::Admin => Ok(token_data.claims),
+        _ => {
+            error!("Insufficient role: {:?}", role);
+            Err(errors::AppError::Unauthorized(
+                "Insufficient role".to_string(),
+            ))
+        }
+    }
 }
 
 /// Decode a JWT token and return the token data.
@@ -95,19 +102,6 @@ fn decode_token(token: &str, secret: &str) -> Result<TokenData<Claims>, errors::
     })?;
 
     Ok(token_data)
-}
-
-/// Validate the user's role in the token.
-fn validate_admin_and_premium_role(role: &Role) -> Result<(), errors::AppError> {
-    match role {
-        Role::Admin | Role::Premium => Ok(()),
-        _ => {
-            error!("Insufficient role: {:?}", role);
-            Err(errors::AppError::Unauthorized(
-                "Insufficient role".to_string(),
-            ))
-        }
-    }
 }
 
 /// Extract the Bearer token from the Authorization header.

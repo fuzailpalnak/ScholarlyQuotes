@@ -1,19 +1,29 @@
+use crate::errors::AppError;
 use dotenv::dotenv;
+use firebase_rs::Firebase;
 use log::info;
-use sea_orm::DatabaseConnection;
-use sea_orm::DbErr;
 use std::env;
 
-use sea_orm::Database;
-
-pub async fn setup_db() -> Result<DatabaseConnection, DbErr> {
+pub async fn setup_db() -> Result<Firebase, AppError> {
     dotenv().ok();
-    let db_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:///app/data/db/scholarlyQuotes.db".to_string());
+    let db_url = env::var("DATABASE_URL");
 
-    info!("{}", db_url);
+    match db_url {
+        Ok(url) => {
+            let firebase_conn = match Firebase::new(&url) {
+                Ok(conn) => conn,
+                Err(err) => {
+                    return Err(AppError::DatabaseError(format!(
+                        "Failed to connect to Firebase: {}",
+                        err
+                    )));
+                }
+            };
 
-    let db = Database::connect(&db_url).await?;
-    info!("Successfully Connected to DB");
-    Ok(db)
+            info!("Successfully connected to database.");
+
+            return Ok(firebase_conn);
+        }
+        Err(err) => return Err(AppError::DatabaseError(err.to_string())),
+    };
 }

@@ -16,7 +16,8 @@ dotenv = "0.15"
 rand = "0.8"
 jsonwebtoken = "8"
 futures-util = { version = "0.3.31", default-features = false }
-
+chrono = "0.4.39"
+actix-rt = "2.10.0"
 [[bin]]
 name = "scholarly_quotes"
 path = "src/main.rs"

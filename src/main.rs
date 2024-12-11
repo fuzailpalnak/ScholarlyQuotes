@@ -1,11 +1,13 @@
-mod db_conn;
 mod errors;
+mod models;
 mod routes;
 mod services;
 mod utils;
 
 use crate::errors::AppError;
+use crate::services::monitor;
 use actix_web::{web, App, HttpServer};
+
 // use log::error;
 use std::sync::Arc;
 
@@ -15,13 +17,15 @@ async fn main() -> Result<(), AppError> {
 
     env_logger::init();
 
-    // Set up the database connection
-    let data_persistence = db_conn::setup_db().await;
-
     // Handle the result of the database connection setup
-    match data_persistence {
+    match services::database::db_conn().await {
         Ok(db) => {
+            // let db = Arc::new(db);
             let db = Arc::new(db);
+
+            // Spawn the background task safely
+            actix_rt::spawn(monitor::monitor_update(db.clone()));
+            
             // Start the HTTP server
             HttpServer::new(move || {
                 App::new()

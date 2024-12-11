@@ -1,9 +1,10 @@
 use crate::errors;
+use crate::services::database;
+
 use actix_web::{web, HttpResponse};
 use firebase_rs::Firebase;
-use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ResponseQuote {
@@ -14,33 +15,23 @@ pub struct ResponseQuote {
 }
 
 pub async fn get_random_quote_handler(
-    db: web::Data<Arc<Firebase>>,
+    db_conn: web::Data<Arc<Firebase>>,
 ) -> Result<HttpResponse, errors::AppError> {
-    let quotes_result = db
-        .at("quotes")
-        .get::<HashMap<String, ResponseQuote>>()
-        .await;
+    let quotes_result = database::fetch_random_quote(&db_conn).await;
 
     match quotes_result {
-        Ok(quotes_map) => {
-            if quotes_map.is_empty() {
-                return Err(errors::AppError::NotFound("No quotes found".to_string()));
-            }
+        Ok(quote) => Ok(HttpResponse::Ok().json(quote)),
+        Err(err) => Err(errors::AppError::DatabaseError(err.to_string())),
+    }
+}
 
-            let keys: Vec<&String> = quotes_map.keys().collect();
-            let random_key = keys.choose(&mut rand::thread_rng());
+pub async fn quote_of_the_day_handler(
+    db_conn: web::Data<Arc<Firebase>>,
+) -> Result<HttpResponse, errors::AppError> {
+    let quote_result = database::fetch_quote_of_the_day(&db_conn).await;
 
-            if let Some(key) = random_key {
-                let response = quotes_map.get(*key).ok_or_else(|| {
-                    errors::AppError::NotFound("Randomly selected key not found".to_string())
-                })?;
-                Ok(HttpResponse::Ok().json(response))
-            } else {
-                Err(errors::AppError::NotFound(
-                    "Could not select a random quote.".to_string(),
-                ))
-            }
-        }
+    match quote_result {
+        Ok(quote) => Ok(HttpResponse::Ok().json(quote)),
         Err(err) => Err(errors::AppError::DatabaseError(err.to_string())),
     }
 }

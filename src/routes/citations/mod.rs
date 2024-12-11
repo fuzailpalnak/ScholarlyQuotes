@@ -12,5 +12,13 @@ pub fn citations_scope() -> Scope {
                 .wrap(from_fn(authentication::validate_auth_token))
                 .route(web::post().to(create::create_quote_handler)),
         )
-        .service(web::resource("/random").route(web::get().to(fetch::get_random_quote_handler)))
+        .service(
+            web::resource("/random")
+                .wrap(from_fn(authentication::validate_auth_token))
+                .route(web::get().to(fetch::get_random_quote_handler)),
+        )
+        .service(
+            web::resource("/quote_of_the_day")
+                .route(web::get().to(fetch::quote_of_the_day_handler)),
+        )
 }

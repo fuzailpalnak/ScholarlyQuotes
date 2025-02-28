@@ -1,4 +1,3 @@
-mod db_conn;
 mod entities;
 mod errors;
 mod routes;
@@ -17,7 +16,7 @@ async fn main() -> Result<(), AppError> {
     env_logger::init();
 
     // Set up the database connection
-    let data_persistence = db_conn::setup_db().await;
+    let data_persistence = services::database::setup_db().await;
 
     // Handle the result of the database connection setup
     match data_persistence {

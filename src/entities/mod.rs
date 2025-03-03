@@ -4,4 +4,5 @@ pub mod prelude;
 
 pub mod categories;
 pub mod quote_category;
+pub mod quote_of_the_day;
 pub mod quotes;

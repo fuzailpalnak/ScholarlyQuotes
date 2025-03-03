@@ -10,7 +10,7 @@ pub struct Model {
     pub author: String,
     #[sea_orm(column_type = "Text")]
     pub quote: String,
-    #[sea_orm(column_type = "Text", column_name = "reference", nullable)]
+    #[sea_orm(column_type = "Text", nullable)]
     pub reference: Option<String>,
     pub language: String,
 }
@@ -19,11 +19,19 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::quote_category::Entity")]
     QuoteCategory,
+    #[sea_orm(has_many = "super::quote_of_the_day::Entity")]
+    QuoteOfTheDay,
 }
 
 impl Related<super::quote_category::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::QuoteCategory.def()
+    }
+}
+
+impl Related<super::quote_of_the_day::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::QuoteOfTheDay.def()
     }
 }
 

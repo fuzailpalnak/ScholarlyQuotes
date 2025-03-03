@@ -2,6 +2,7 @@ use actix_web::{HttpResponse, ResponseError};
 use jsonwebtoken::errors::Error as JWTError;
 use log::error;
 use sea_orm::DbErr;
+use serde_json::Error as SerdeError;
 use std::io::Error as IOError;
 use std::time::SystemTimeError;
 
@@ -14,7 +15,22 @@ pub enum AppError {
     Unauthorized(String),
     SystemTimeError(SystemTimeError),
     TokenError(JWTError),
+    RedisError(redis::RedisError),
+    SerdeError(SerdeError),
 }
+
+impl From<SerdeError> for AppError {
+    fn from(e: SerdeError) -> Self {
+        AppError::SerdeError(e)
+    }
+}
+
+impl From<redis::RedisError> for AppError {
+    fn from(e: redis::RedisError) -> Self {
+        AppError::RedisError(e)
+    }
+}
+
 impl From<SystemTimeError> for AppError {
     fn from(e: SystemTimeError) -> Self {
         AppError::SystemTimeError(e)
@@ -55,6 +71,8 @@ impl std::fmt::Display for AppError {
             AppError::Unauthorized(msg) => write!(f, "Unauthorized request: {}", msg),
             AppError::SystemTimeError(e) => write!(f, "System error: {:?}", e),
             AppError::TokenError(e) => write!(f, "Token error: {:?}", e),
+            AppError::RedisError(e) => write!(f, "Redis error: {:?}", e),
+            AppError::SerdeError(e) => write!(f, "Json Conversion error: {:?}", e),
         }
     }
 }
@@ -82,6 +100,12 @@ impl ResponseError for AppError {
             }
             AppError::Unauthorized(_) => {
                 HttpResponse::Unauthorized().body(format!("Unauthorized Request: {}", self))
+            }
+            AppError::RedisError(e) => {
+                HttpResponse::InternalServerError().body(format!("Redis error: {:?}", e))
+            }
+            AppError::SerdeError(e) => {
+                HttpResponse::InternalServerError().body(format!("Json Conversion error: {:?}", e))
             }
         }
     }

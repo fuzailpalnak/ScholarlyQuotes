@@ -1,3 +1,4 @@
+mod db_queries;
 mod entities;
 mod errors;
 mod routes;
@@ -6,8 +7,16 @@ mod utils;
 
 use crate::errors::AppError;
 use actix_web::{web, App, HttpServer};
-// use log::error;
+use log::info;
 use std::sync::Arc;
+
+use redis::Client as RedisClient;
+use sea_orm::DatabaseConnection;
+
+pub struct AppState {
+    pub db: Arc<DatabaseConnection>,
+    pub redis_client: Arc<RedisClient>,
+}
 
 #[actix_web::main]
 async fn main() -> Result<(), AppError> {
@@ -16,26 +25,35 @@ async fn main() -> Result<(), AppError> {
     env_logger::init();
 
     // Set up the database connection
-    let data_persistence = services::database::setup_db().await;
+    let db = services::conn::setup_db()
+        .await
+        .map_err(AppError::DatabaseError)?;
+    let redis_client = services::conn::steup_redis().await?;
 
-    // Handle the result of the database connection setup
-    match data_persistence {
-        Ok(db) => {
-            let db = Arc::new(db);
-            // Start the HTTP server
-            HttpServer::new(move || {
-                App::new()
-                    .app_data(web::Data::new(db.clone())) // Pass db connection to the app
-                    .configure(routes::config_routes) // Configure routes
-            })
-            .bind("0.0.0.0:8080")? // Bind to address
-            .workers(1) // Number of worker threads
-            .run() // Run the server
-            .await?;
+    let db = Arc::new(db);
+    let redis_client = Arc::new(redis_client);
 
-            // Return Ok after the server runs successfully
-            Ok(())
-        }
-        Err(e) => Err(AppError::DatabaseError(e)),
-    }
+    info!("Starting Actix-web server on 0.0.0.0:8080...");
+
+    actix_rt::spawn(services::scheduler::qotd_scheduler(
+        db.clone(),
+        redis_client.clone(),
+    ));
+
+    let app_state = web::Data::new(AppState {
+        db: db,
+        redis_client: redis_client,
+    });
+    // Start the Actix web server
+    HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone()) // Pass shared app state
+            .configure(routes::config_routes) // Configure routes
+    })
+    .bind("0.0.0.0:8080")? // Bind to the specified address
+    .workers(4) // Use 4 worker threads for better performance
+    .run()
+    .await?;
+
+    Ok(())
 }

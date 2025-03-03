@@ -2,4 +2,5 @@
 
 pub use super::categories::Entity as Categories;
 pub use super::quote_category::Entity as QuoteCategory;
+pub use super::quote_of_the_day::Entity as QuoteOfTheDay;
 pub use super::quotes::Entity as Quotes;

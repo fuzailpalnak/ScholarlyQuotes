@@ -1,4 +1,4 @@
-use crate::db_queries::qotd;
+use crate::db::queries;
 use crate::utils;
 use chrono::Utc;
 use log::info;
@@ -13,7 +13,7 @@ pub async fn qotd_scheduler(db_conn: Arc<DatabaseConnection>, redis_client: Arc<
         interval.tick().await;
         for lang in utils::languages::Language::variants() {
             let last_update: Result<i64, _> =
-                qotd::get_redis_last_update(redis_client.as_ref(), lang.as_str()).await;
+                queries::get_last_qotd_update_timestamp(redis_client.as_ref(), lang.as_str()).await;
 
             match last_update {
                 Ok(last_timestamp) => {
@@ -22,14 +22,16 @@ pub async fn qotd_scheduler(db_conn: Arc<DatabaseConnection>, redis_client: Arc<
 
                     if elapsed_hours >= 24 {
                         if let Err(e) =
-                            qotd::set_qotd(db_conn.as_ref(), redis_client.as_ref()).await
+                            queries::set_daily_qotd(db_conn.as_ref(), redis_client.as_ref()).await
                         {
                             log::error!("Failed to update QOTD: {:?}", e);
                         }
                     }
                 }
                 Err(_) => {
-                    if let Err(e) = qotd::set_qotd(db_conn.as_ref(), redis_client.as_ref()).await {
+                    if let Err(e) =
+                        queries::set_daily_qotd(db_conn.as_ref(), redis_client.as_ref()).await
+                    {
                         log::error!("Failed to update QOTD: {:?}", e);
                     }
                 }

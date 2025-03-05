@@ -1,20 +1,68 @@
-use crate::db_queries::fetch::fetch_random_quote_by_language;
-use crate::entities::quote_of_the_day::{self, Column as QOTDColumn, Entity as QOTDEntity};
+use super::model::ResponseQuote;
+use crate::entities::quotes::{Column, Entity as QuoteEntity};
 use crate::errors::AppError;
+use log::info;
+use rand::Rng;
+use sea_orm::ColumnTrait;
+use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+
+use crate::entities::quote_of_the_day::{self, Column as QOTDColumn, Entity as QOTDEntity};
 use chrono::Utc;
 
-use super::model::ResponseQuote;
-use crate::entities::quotes::Entity as QuoteEntity;
-use log::info;
 use redis::AsyncCommands;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use crate::utils;
 use serde_json::Error as SerdeError;
 
-pub async fn qotd_db_insert(
+pub async fn fetch_ids_by_language(
+    db: &DatabaseConnection,
+    language: &str,
+) -> Result<Vec<i32>, AppError> {
+    let quote_ids: Vec<i32> = QuoteEntity::find()
+        .filter(Column::Language.eq(language)) // Filter by language
+        .column(Column::Id) // Select only the IDs
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|quote| quote.id) // Extract the IDs into a Vec
+        .collect();
+
+    Ok(quote_ids)
+}
+
+pub async fn fetch_random_quote_by_language(
+    db: &DatabaseConnection,
+    language: &str,
+) -> Result<ResponseQuote, AppError> {
+    let quote_ids = fetch_ids_by_language(db, language).await?;
+
+    match quote_ids.is_empty() {
+        true => Err(AppError::NotFound(
+            "No quotes found in the database.".to_string(),
+        )),
+        false => {
+            let random_id =
+                rand::thread_rng().gen_range(quote_ids[0]..=quote_ids[quote_ids.len() - 1]);
+
+            let random_quote = QuoteEntity::find_by_id(random_id)
+                .one(db)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Quote Not Found in DB".to_string()))?;
+            info!("{:?}", random_quote);
+            Ok(ResponseQuote {
+                id: random_quote.id,
+                content: random_quote.quote,
+                author: random_quote.author,
+                reference: random_quote.reference.expect("Category should not be None"),
+                language: random_quote.language,
+            })
+        }
+    }
+}
+
+pub async fn insert_qotd_into_db(
     db_conn: &DatabaseConnection,
     quote: &ResponseQuote,
 ) -> Result<(), AppError> {
@@ -35,7 +83,7 @@ pub async fn qotd_db_insert(
     Ok(())
 }
 
-pub async fn qotd_redis_insert(
+pub async fn insert_qotd_into_redis(
     redis: &redis::Client,
     quote: &ResponseQuote,
 ) -> Result<(), AppError> {
@@ -45,7 +93,7 @@ pub async fn qotd_redis_insert(
         .map_err(|err| AppError::from(err))?;
 
     cache_qotd(&mut conn, quote).await?;
-    update_last_qotd_time(&mut conn, quote).await?;
+    update_qotd_last_updated_time(&mut conn, quote).await?;
 
     Ok(())
 }
@@ -66,7 +114,7 @@ pub async fn cache_qotd(
     Ok(())
 }
 
-pub async fn update_last_qotd_time(
+pub async fn update_qotd_last_updated_time(
     conn: &mut redis::aio::Connection,
     quote: &ResponseQuote,
 ) -> Result<(), AppError> {
@@ -77,17 +125,20 @@ pub async fn update_last_qotd_time(
     Ok(())
 }
 
-pub async fn set_qotd(db_conn: &DatabaseConnection, redis: &redis::Client) -> Result<(), AppError> {
+pub async fn set_daily_qotd(
+    db_conn: &DatabaseConnection,
+    redis: &redis::Client,
+) -> Result<(), AppError> {
     for lang in utils::languages::Language::variants() {
         let response = fetch_random_quote_by_language(db_conn, lang.as_str()).await?;
-        qotd_db_insert(db_conn, &response).await?;
-        qotd_redis_insert(redis, &response).await?;
+        insert_qotd_into_db(db_conn, &response).await?;
+        insert_qotd_into_redis(redis, &response).await?;
     }
 
     Ok(())
 }
 
-pub async fn get_redis_last_update(
+pub async fn get_last_qotd_update_timestamp(
     redis_client: &redis::Client,
     lang: &str,
 ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -102,7 +153,7 @@ pub async fn get_redis_last_update(
     }
 }
 
-pub async fn fetch_and_cache_quote_from_db(
+pub async fn fetch_and_cache_qotd_from_db(
     db_conn: &DatabaseConnection,
     redis_conn: &mut redis::aio::Connection,
     language: &str,

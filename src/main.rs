@@ -1,4 +1,4 @@
-mod db_queries;
+mod db;
 mod entities;
 mod errors;
 mod routes;
@@ -25,10 +25,10 @@ async fn main() -> Result<(), AppError> {
     env_logger::init();
 
     // Set up the database connection
-    let db = services::conn::setup_db()
+    let db = db::conn::setup_db()
         .await
         .map_err(AppError::DatabaseError)?;
-    let redis_client = services::conn::steup_redis().await?;
+    let redis_client = db::conn::steup_redis().await?;
 
     let db = Arc::new(db);
     let redis_client = Arc::new(redis_client);

@@ -12,7 +12,7 @@ A curated collection of thought-provoking quotes from scholars, philosophers, an
 
 ## 🏗️ Tech Stack
 
-- **Backend**: Rust (with Actix-Web or Axum)
+- **Backend**: Rust (with Actix-Web)
 - **Database**: PostgreSQL
 - **Cache**: Redis
 - **ORM**: Sea-ORM

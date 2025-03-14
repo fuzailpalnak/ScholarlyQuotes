@@ -1,4 +1,4 @@
-use crate::errors::AppError;
+use crate::models::errors::AppError;
 use crate::utils;
 
 use log::info;

@@ -1,32 +1,27 @@
-use super::model::ResponseQuote;
 use crate::entities::quotes::{Column, Entity as QuoteEntity};
-use crate::errors::AppError;
+use crate::models::data::ResponseQuote;
+use crate::models::errors::AppError;
 use log::info;
 use rand::Rng;
 use sea_orm::ColumnTrait;
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
 use crate::entities::quote_of_the_day::{self, Column as QOTDColumn, Entity as QOTDEntity};
-use chrono::Utc;
 
-use redis::AsyncCommands;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::ActiveValue::Set;
-
-use crate::utils;
-use serde_json::Error as SerdeError;
 
 pub async fn fetch_ids_by_language(
     db: &DatabaseConnection,
     language: &str,
 ) -> Result<Vec<i32>, AppError> {
     let quote_ids: Vec<i32> = QuoteEntity::find()
-        .filter(Column::Language.eq(language)) // Filter by language
-        .column(Column::Id) // Select only the IDs
+        .filter(Column::Language.eq(language))
+        .column(Column::Id)
         .all(db)
         .await?
         .into_iter()
-        .map(|quote| quote.id) // Extract the IDs into a Vec
+        .map(|quote| quote.id)
         .collect();
 
     Ok(quote_ids)
@@ -62,18 +57,17 @@ pub async fn fetch_random_quote_by_language(
     }
 }
 
+#[warn(dead_code)]
 pub async fn insert_qotd_into_db(
     db_conn: &DatabaseConnection,
     quote: &ResponseQuote,
 ) -> Result<(), AppError> {
-    let today = Utc::now().date_naive();
-    let conflict = OnConflict::columns([QOTDColumn::Language, QOTDColumn::Date])
+    let conflict = OnConflict::columns([QOTDColumn::Language])
         .do_nothing()
         .clone();
     let _ = QOTDEntity::insert(quote_of_the_day::ActiveModel {
         language: Set(quote.language.to_string()),
         quote_id: Set(quote.id),
-        date: Set(today),
         ..Default::default()
     })
     .on_conflict(conflict)
@@ -83,79 +77,25 @@ pub async fn insert_qotd_into_db(
     Ok(())
 }
 
-pub async fn insert_qotd_into_redis(
-    redis: &redis::Client,
-    quote: &ResponseQuote,
-) -> Result<(), AppError> {
-    let mut conn = redis
-        .get_async_connection()
-        .await
-        .map_err(|err| AppError::from(err))?;
-
-    cache_qotd(&mut conn, quote).await?;
-    update_qotd_last_updated_time(&mut conn, quote).await?;
-
-    Ok(())
-}
-
-pub async fn cache_qotd(
-    conn: &mut redis::aio::Connection,
-    quote: &ResponseQuote,
-) -> Result<(), AppError> {
-    let key = format!("qotd:{}", quote.language);
-    info!("Caching QOTD: {:?}", quote);
-
-    let quote_json =
-        serde_json::to_string(quote).map_err(|err: SerdeError| AppError::SerdeError(err))?;
-    let _: () = conn
-        .set_ex(key, quote_json, 86400)
-        .await
-        .map_err(|err| AppError::RedisError(err))?; // Expire in 24 hours
-    Ok(())
-}
-
-pub async fn update_qotd_last_updated_time(
-    conn: &mut redis::aio::Connection,
-    quote: &ResponseQuote,
-) -> Result<(), AppError> {
-    let key = format!("qotd:last_update:{}", quote.language);
-    let current_time = Utc::now().timestamp();
-
-    let _: () = conn.set(key, current_time).await?;
-    Ok(())
-}
-
-pub async fn set_daily_qotd(
+pub async fn update_qotd_in_db(
     db_conn: &DatabaseConnection,
-    redis: &redis::Client,
+    quote: &ResponseQuote,
 ) -> Result<(), AppError> {
-    for lang in utils::languages::Language::variants() {
-        let response = fetch_random_quote_by_language(db_conn, lang.as_str()).await?;
-        insert_qotd_into_db(db_conn, &response).await?;
-        insert_qotd_into_redis(redis, &response).await?;
-    }
+    let _ = QOTDEntity::update_many()
+        .set(quote_of_the_day::ActiveModel {
+            language: Set(quote.language.to_string()),
+            quote_id: Set(quote.id),
+            ..Default::default()
+        })
+        .filter(quote_of_the_day::Column::Language.eq(quote.language.to_string()))
+        .exec(db_conn)
+        .await?;
 
     Ok(())
 }
 
-pub async fn get_last_qotd_update_timestamp(
-    redis_client: &redis::Client,
-    lang: &str,
-) -> Result<i64, Box<dyn std::error::Error>> {
-    let mut conn = redis_client.get_async_connection().await?;
-    let key = format!("qotd:last_update:{}", lang);
-    let last_update: Result<i64, _> = conn.get(key).await;
-    info!("Last Update Timestamp: {:?}", last_update);
-
-    match last_update {
-        Ok(timestamp) => Ok(timestamp),
-        Err(e) => Err(Box::new(e)),
-    }
-}
-
-pub async fn fetch_and_cache_qotd_from_db(
+pub async fn get_qotd_from_db(
     db_conn: &DatabaseConnection,
-    redis_conn: &mut redis::aio::Connection,
     language: &str,
 ) -> Result<ResponseQuote, AppError> {
     let qotd = QOTDEntity::find()
@@ -173,16 +113,6 @@ pub async fn fetch_and_cache_qotd_from_db(
                 reference: quote.reference.unwrap_or_else(|| "Unknown".to_string()),
                 language: quote.language,
             };
-
-            let quote_json = serde_json::to_string(&response_quote).map_err(|e| {
-                log::error!("Error serializing quote: {}", e);
-                AppError::SerdeError(e)
-            })?;
-
-            let _: () = redis_conn
-                .set_ex(format!("qotd:{}", language), quote_json, 86400)
-                .await
-                .map_err(|e| AppError::RedisError(e))?;
 
             Ok(response_quote)
         }

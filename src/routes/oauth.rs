@@ -51,12 +51,7 @@ async fn find_existing_key(
     };
 
     match client.list_keys(list_req).await {
-        Ok(res) => {
-            for key in &res.keys {
-                println!("{:?}", key); // Print each key
-            }
-            Ok(res.keys.into_iter().last()) // Return the last key (most recent)
-        }
+        Ok(res) => Ok(res.keys.into_iter().next()),
         Err(err) => {
             error!("{:?}", err);
             Err(AppError::ApiKeyError("Failed API LookUp".to_string()))

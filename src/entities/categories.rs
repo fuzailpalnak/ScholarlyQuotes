@@ -3,24 +3,18 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "quotes")]
+#[sea_orm(table_name = "categories")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub author: String,
-    #[sea_orm(column_type = "Text")]
-    pub quote: String,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub reference: Option<String>,
-    pub language: String,
+    #[sea_orm(unique)]
+    pub name: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(has_many = "super::quote_category::Entity")]
     QuoteCategory,
-    #[sea_orm(has_many = "super::quote_of_the_day::Entity")]
-    QuoteOfTheDay,
 }
 
 impl Related<super::quote_category::Entity> for Entity {
@@ -29,18 +23,12 @@ impl Related<super::quote_category::Entity> for Entity {
     }
 }
 
-impl Related<super::quote_of_the_day::Entity> for Entity {
+impl Related<super::quotes::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::QuoteOfTheDay.def()
-    }
-}
-
-impl Related<super::categories::Entity> for Entity {
-    fn to() -> RelationDef {
-        super::quote_category::Relation::Categories.def()
+        super::quote_category::Relation::Quotes.def()
     }
     fn via() -> Option<RelationDef> {
-        Some(super::quote_category::Relation::Quotes.def().rev())
+        Some(super::quote_category::Relation::Categories.def().rev())
     }
 }
 

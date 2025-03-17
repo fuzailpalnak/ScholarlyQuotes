@@ -12,7 +12,8 @@ jobs:
         run: |
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
           echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env
-          echo "API_KEY=${{ secrets.API_KEY }}" >> .env
+          echo "UNKEY_ROOT_KEY=${{ secrets.UNKEY_ROOT_KEY }}" >> .env
+          echo "UNKEY_API_ID=${{ secrets.UNKEY_API_ID }}" >> .env
       - name: build image
         run: |
           docker build -t buildfailed/scholarly-quotes:latest .

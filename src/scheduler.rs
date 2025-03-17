@@ -16,9 +16,8 @@ pub async fn qotd_cache_update_scheduler(
 
     loop {
         interval.tick().await;
-        info!("Checking QOTD updates...");
 
-        let tasks = utils::languages::Language::variants()
+        let tasks = utils::constants::Language::variants()
             .into_iter()
             .map(|lang| {
                 helper::quotes::update_qotd_cache_for_language(

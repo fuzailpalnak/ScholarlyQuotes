@@ -16,7 +16,7 @@ pub async fn update_qotd(
     db_conn: &DatabaseConnection,
     redis: &redis::Client,
 ) -> Result<(), AppError> {
-    let tasks: Vec<_> = utils::languages::Language::variants()
+    let tasks: Vec<_> = utils::constants::Language::variants()
         .into_iter()
         .map(|lang| {
             let db_conn = db_conn.clone();

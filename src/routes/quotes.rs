@@ -7,15 +7,15 @@ use actix_web::{web, HttpResponse, Scope};
 pub fn quotes_routes() -> Scope {
     actix_web::web::scope("/random_quote")
         .service(
-            web::resource(utils::languages::Language::English.as_str())
+            web::resource(utils::constants::Language::English.as_str())
                 .route(web::get().to(get_quote_english)),
         )
         .service(
-            web::resource(utils::languages::Language::Arabic.as_str())
+            web::resource(utils::constants::Language::Arabic.as_str())
                 .route(web::get().to(get_quote_arabic)),
         )
         .service(
-            web::resource(utils::languages::Language::RomanUrdu.as_str())
+            web::resource(utils::constants::Language::RomanUrdu.as_str())
                 .route(web::get().to(get_quote_roman_urdu)),
         )
 }
@@ -30,13 +30,13 @@ async fn get_quotes_by_language(
 }
 
 async fn get_quote_english(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
-    get_quotes_by_language(app_state, utils::languages::Language::English.as_str()).await
+    get_quotes_by_language(app_state, utils::constants::Language::English.as_str()).await
 }
 
 async fn get_quote_arabic(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
-    get_quotes_by_language(app_state, utils::languages::Language::Arabic.as_str()).await
+    get_quotes_by_language(app_state, utils::constants::Language::Arabic.as_str()).await
 }
 
 async fn get_quote_roman_urdu(app_state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
-    get_quotes_by_language(app_state, utils::languages::Language::RomanUrdu.as_str()).await
+    get_quotes_by_language(app_state, utils::constants::Language::RomanUrdu.as_str()).await
 }

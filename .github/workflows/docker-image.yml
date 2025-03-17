@@ -1,0 +1,21 @@
+name: Build and Publish image to Docker Hub
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+
+jobs:
+  publish_images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: build image
+        run: |
+          docker build . -t buildfailed/scholarly-quotes:latest
+      - name: push image to docker hub
+        run: |
+          docker login -u buildfailed -p ${{ secrets.DOCKER_HUB_TOKEN }}
+          docker push buildfailed/scholarly-quotes:latest

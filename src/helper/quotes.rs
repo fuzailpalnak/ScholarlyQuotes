@@ -1,6 +1,5 @@
 use crate::db::queries::pg;
 use crate::db::queries::rds;
-use crate::entities;
 use crate::models::data;
 use crate::models::data::ResponseQuote;
 use crate::models::errors::AppError;
@@ -11,7 +10,6 @@ use futures_util::future;
 use log::{error, info};
 use redis::AsyncCommands;
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 
 async fn update_qotd(db_conn: &DatabaseConnection, redis: &redis::Client) -> Result<(), AppError> {
     let tasks: Vec<_> = utils::constants::Language::variants()

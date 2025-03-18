@@ -7,8 +7,8 @@ use crate::utils;
 
 use actix_web::{middleware::from_fn, web, HttpResponse, Scope};
 use log::error;
+use serde_json::json;
 use serde_json::to_value;
-
 use unkey::models::ApiKey;
 use unkey::models::{
     CreateKeyRequest, CreateKeyResponse, ListKeysRequest, Ratelimit, RatelimitType, Refill,
@@ -18,11 +18,33 @@ use unkey::models::{
 use unkey::Client;
 
 pub fn oauth_routes() -> Scope {
-    actix_web::web::scope("/generate_key").service(
-        web::resource("new")
-            .wrap(from_fn(oauth::owner_check))
-            .route(web::post().to(generate_key)),
-    )
+    actix_web::web::scope("/api_key")
+        .service(
+            web::resource("new")
+                .wrap(from_fn(oauth::owner_check))
+                .route(web::post().to(generate_key)),
+        )
+        .service(
+            web::resource("delete")
+                .wrap(from_fn(oauth::owner_check))
+                .route(web::post().to(delete_key)),
+        )
+}
+
+async fn delete_key(
+    app_state: web::Data<AppState>,
+    req_body: web::Json<KeyRequest>,
+) -> Result<HttpResponse, AppError> {
+    let client = app_state.unkey_client.clone();
+
+    match find_existing_key(&client, &req_body, &app_state).await? {
+        Some(existing_key) => {
+            revoke_key(existing_key, &client).await?;
+            let response_body = json!({ "message": "Key deleted successfully" });
+            Ok(HttpResponse::Ok().json(response_body))
+        }
+        None => Err(AppError::NotFound("No existing key found".to_string())),
+    }
 }
 
 async fn generate_key(

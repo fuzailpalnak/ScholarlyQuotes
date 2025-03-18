@@ -85,6 +85,11 @@ pub async fn rate_limit(
             ErrorUnauthorized("API key verification failed")
         })?;
 
+    if !response.valid {
+        info!("Response Invalid: {}", response.valid);
+        return Err(ErrorUnauthorized("Invalid API Key"));
+    }
+
     if let Ok(true) = is_admin(&response.meta) {
         return Err(ErrorUnauthorized("Incorrect Use of API Key"));
     }

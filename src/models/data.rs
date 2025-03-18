@@ -35,3 +35,9 @@ pub struct KeyResponse {
     pub key: String,
     pub key_id: String,
 }
+
+#[derive(Serialize)]
+pub struct CacheResponse {
+    pub message: String,
+    pub success: bool,
+}

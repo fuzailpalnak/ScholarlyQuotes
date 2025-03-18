@@ -36,28 +36,56 @@ pub async fn connect_to_oauth_server() -> Result<(UnkeyClient, UnkeyApiId), Erro
     Ok((unkey_client, unkey_api_id))
 }
 
-pub async fn owner_check(
-    req: ServiceRequest,
-    next: Next<impl MessageBody>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
-    info!("Owner Middleware start");
-
+async fn verfiy_api(req: &ServiceRequest) -> Result<VerifyKeyResponse, Error> {
     let data = req
         .app_data::<web::Data<AppState>>()
         .ok_or_else(|| ErrorInternalServerError("AppState missing"))?;
 
     let authorization_header = extract_authorization_header(req.headers())?;
 
-    let response = verify_api_key(&data, &authorization_header)
-        .await
-        .map_err(|err| {
-            error!("API key verification error: {}", err);
-            ErrorUnauthorized("API key verification failed")
-        })?;
+    let verify_request = VerifyKeyRequest {
+        key: authorization_header.to_string(),
+        api_id: data.unkey_api_id.clone().into(),
+    };
 
-    if !response.valid {
-        return Err(ErrorUnauthorized("Invalid API key"));
+    match data.unkey_client.verify_key(verify_request).await {
+        Ok(response) => {
+            if !response.valid {
+                return Err(ErrorUnauthorized("Invalid API key"));
+            }
+            Ok(response)
+        }
+        Err(err) => {
+            error!("Key verification request failed: {:?}", err);
+            Err(ErrorUnauthorized(
+                "Key verification failed. Please try again later.",
+            ))
+        }
     }
+}
+
+pub async fn owner_check(
+    req: ServiceRequest,
+    next: Next<impl MessageBody>,
+) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    info!("Owner Middleware start");
+
+    let response = verfiy_api(&req).await?;
+
+    if let Ok(false) = is_owner(&response.meta) {
+        return Err(ErrorUnauthorized("Not Authorized to generate new keys"));
+    }
+
+    next.call(req).await
+}
+
+pub async fn admin_check(
+    req: ServiceRequest,
+    next: Next<impl MessageBody>,
+) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    info!("Admin Middleware start");
+
+    let response = verfiy_api(&req).await?;
 
     if let Ok(false) = is_admin(&response.meta) {
         return Err(ErrorUnauthorized("Not Authorized to generate new keys"));
@@ -72,25 +100,9 @@ pub async fn rate_limit(
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
     info!("Rate Limit Middleware start");
 
-    let data = req
-        .app_data::<web::Data<AppState>>()
-        .ok_or_else(|| ErrorInternalServerError("AppState missing"))?;
+    let response = verfiy_api(&req).await?;
 
-    let authorization_header = extract_authorization_header(req.headers())?;
-
-    let response = verify_api_key(&data, &authorization_header)
-        .await
-        .map_err(|err| {
-            error!("API key verification error: {}", err);
-            ErrorUnauthorized("API key verification failed")
-        })?;
-
-    if !response.valid {
-        info!("Response Invalid: {}", response.valid);
-        return Err(ErrorUnauthorized("Invalid API Key"));
-    }
-
-    if let Ok(true) = is_admin(&response.meta) {
+    if let Ok(true) = is_owner(&response.meta) {
         return Err(ErrorUnauthorized("Incorrect Use of API Key"));
     }
 
@@ -129,34 +141,24 @@ fn extract_authorization_header(headers: &HeaderMap) -> Result<String, Error> {
         .ok_or_else(|| ErrorUnauthorized("Invalid or missing Authorization header"))
 }
 
-async fn verify_api_key(
-    data: &web::Data<AppState>,
-    key: &str,
-) -> Result<VerifyKeyResponse, AppError> {
-    let verify_request = VerifyKeyRequest {
-        key: key.to_string(),
-        api_id: data.unkey_api_id.clone().into(),
-    };
-
-    match data.unkey_client.verify_key(verify_request).await {
-        Ok(response) => Ok(response),
-
-        Err(err) => {
-            error!("Key verification request failed: {:?}", err);
-            Err(ApiKeyError(
-                "Key verification failed. Please try again later.".to_string(),
-            ))
-        }
-    }
-}
-
 fn is_admin(meta: &Option<Value>) -> Result<bool, AppError> {
     let is_admin = meta
-        .as_ref() // Convert &Option<Value> to Option<&Value>
+        .as_ref()
         .and_then(|meta| meta.as_object())
         .and_then(|meta| meta.get("admin"))
         .and_then(|admin_value| admin_value.as_bool())
         .unwrap_or(false);
     info!("Is Admin: {}", is_admin);
     Ok(is_admin)
+}
+
+fn is_owner(meta: &Option<Value>) -> Result<bool, AppError> {
+    let is_owner = meta
+        .as_ref()
+        .and_then(|meta| meta.as_object())
+        .and_then(|meta| meta.get("owner"))
+        .and_then(|owner_value| owner_value.as_bool())
+        .unwrap_or(false);
+    info!("Is Owner: {}", is_owner);
+    Ok(is_owner)
 }

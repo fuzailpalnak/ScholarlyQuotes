@@ -3,7 +3,6 @@ mod entities;
 mod helper;
 mod models;
 mod routes;
-mod scheduler;
 mod utils;
 
 use crate::helper::oauth::connect_to_oauth_server;
@@ -23,11 +22,6 @@ async fn main() -> Result<(), AppError> {
 
     let db = Arc::new(db);
     let redis_client = Arc::new(redis_client);
-
-    actix_rt::spawn(scheduler::qotd_cache_update_scheduler(
-        db.clone(),
-        redis_client.clone(),
-    ));
 
     let (unkey_client, unkey_api_id) = connect_to_oauth_server().await?;
 

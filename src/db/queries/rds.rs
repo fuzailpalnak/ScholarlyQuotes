@@ -63,7 +63,7 @@ pub async fn update_qotd_reset_time_in_redis(
     Ok(())
 }
 
-pub async fn get_last_qotd_update_timestamp(
+pub async fn fetch_last_qotd_timestamp(
     redis_client: &redis::Client,
     lang: &str,
 ) -> Result<i64, AppError> {

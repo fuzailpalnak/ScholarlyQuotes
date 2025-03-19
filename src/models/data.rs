@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use redis::Client as RedisClient;
@@ -15,13 +16,15 @@ pub struct AppState {
     pub unkey_api_id: UnkeyApiId,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ResponseQuote {
     pub id: i32,
     pub content: String,
     pub author: String,
     pub reference: String,
     pub language: String,
+    #[serde(default = "default_date")]
+    pub date: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -40,4 +43,9 @@ pub struct KeyResponse {
 pub struct CacheResponse {
     pub message: String,
     pub success: bool,
+}
+
+fn default_date() -> String {
+    let now: DateTime<Utc> = Utc::now();
+    now.to_rfc3339()
 }

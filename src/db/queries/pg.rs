@@ -52,6 +52,7 @@ pub async fn fetch_random_quote_by_language(
                 author: random_quote.author,
                 reference: random_quote.reference.expect("Category should not be None"),
                 language: random_quote.language,
+                ..Default::default()
             })
         }
     }
@@ -112,6 +113,7 @@ pub async fn get_qotd_from_db(
                 author: quote.author,
                 reference: quote.reference.unwrap_or_else(|| "Unknown".to_string()),
                 language: quote.language,
+                ..Default::default()
             };
 
             Ok(response_quote)

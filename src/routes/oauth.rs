@@ -29,6 +29,11 @@ pub fn oauth_routes() -> Scope {
                 .wrap(from_fn(oauth::owner_check))
                 .route(web::post().to(delete_key)),
         )
+        .service(
+            web::resource("new_key_admin_override")
+                .wrap(from_fn(oauth::admin_check))
+                .route(web::post().to(generate_key_admin_override)),
+        )
 }
 
 async fn delete_key(
@@ -48,6 +53,28 @@ async fn delete_key(
 }
 
 async fn generate_key(
+    app_state: web::Data<AppState>,
+    req_body: web::Json<KeyRequest>,
+) -> Result<HttpResponse, AppError> {
+    let client = app_state.unkey_client.clone();
+
+    if let Some(existing_key) = find_existing_key(&client, &req_body, &app_state).await? {
+        let response_body = json!({
+            "message": "Can't create new key, Owner already exists.
+            If you have lost your key, reach out to the admin for a new key generation.",
+            "existing_key": {
+                "id": existing_key.id,
+                "Api id": existing_key.api_id,
+            }
+        });
+
+        return Ok(HttpResponse::Ok().json(response_body));
+    }
+
+    create_new_key(&client, &req_body, &app_state).await
+}
+
+async fn generate_key_admin_override(
     app_state: web::Data<AppState>,
     req_body: web::Json<KeyRequest>,
 ) -> Result<HttpResponse, AppError> {
